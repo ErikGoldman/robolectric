@@ -1,7 +1,23 @@
 package org.robolectric;
 
-import android.app.Application;
-import android.os.Build;
+import static org.fest.reflect.core.Reflection.staticField;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.maven.artifact.ant.DependenciesTask;
 import org.apache.maven.model.Dependency;
 import org.apache.tools.ant.Project;
@@ -42,23 +58,8 @@ import org.robolectric.util.DatabaseConfig.DatabaseMap;
 import org.robolectric.util.DatabaseConfig.UsingDatabaseMap;
 import org.robolectric.util.SQLiteMap;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-
-import static org.fest.reflect.core.Reflection.staticField;
+import android.app.Application;
+import android.os.Build;
 
 /**
  * Installs a {@link org.robolectric.bytecode.InstrumentingClassLoader} and
@@ -295,7 +296,7 @@ public class RobolectricTestRunner extends BlockJUnit4ClassRunner {
                     parallelUniverseInterface.setDatabaseMap(databaseMap); //Set static DatabaseMap in DBConfig
 
                     boolean strictI18n = RobolectricTestRunner.determineI18nStrictState(bootstrappedMethod);
-                    
+
                     int sdkVersion = pickReportedSdkVersion(config, sdkEnvironment);
                     Class<?> versionClass = sdkEnvironment.bootstrappedClass(Build.VERSION.class);
                     staticField("SDK_INT").ofType(int.class).in(versionClass).set(sdkVersion);

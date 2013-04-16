@@ -1,16 +1,18 @@
 package org.robolectric.shadows;
 
 
-import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteDatabase.CursorFactory;
-import android.database.sqlite.SQLiteOpenHelper;
+import static org.fest.assertions.api.Assertions.assertThat;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.TestRunners;
 
-import static org.fest.assertions.api.Assertions.assertThat;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabase.CursorFactory;
+import android.database.sqlite.SQLiteOpenHelper;
 
 @RunWith(TestRunners.WithDefaults.class)
 public class SQLiteOpenHelperTest {
@@ -74,6 +76,135 @@ public class SQLiteOpenHelperTest {
         assertThat(database.isOpen()).isTrue();
         helper.close();
         assertThat(database.isOpen()).isFalse();
+    }
+
+    @Test
+    public void testCloseMultipleDbs() throws Exception {
+        TestOpenHelper helper2 = new TestOpenHelper(null, "path2", null, 1);
+
+        SQLiteDatabase database1 = helper.getWritableDatabase();
+        SQLiteDatabase database2 = helper2.getWritableDatabase();
+
+        assertThat(database1.isOpen()).isTrue();
+        assertThat(database2.isOpen()).isTrue();
+        helper.close();
+        assertThat(database1.isOpen()).isFalse();
+        assertThat(database2.isOpen()).isTrue();
+        helper2.close();
+        assertThat(database2.isOpen()).isFalse();
+    }
+
+    @Test
+    public void testOpenMultipleDbsOnCreate() throws Exception {
+        TestOpenHelper helper2 = new TestOpenHelper(null, "path2", null, 1);
+
+        assertThat(helper.onCreateCalled).isFalse();
+        assertThat(helper2.onCreateCalled).isFalse();
+
+        helper.getWritableDatabase();
+        assertThat(helper.onCreateCalled).isTrue();
+        assertThat(helper2.onCreateCalled).isFalse();
+
+        helper2.getWritableDatabase();
+        assertThat(helper.onCreateCalled).isTrue();
+        assertThat(helper2.onCreateCalled).isTrue();
+
+        helper.close();
+        helper2.close();
+    }
+
+    private void setupTable(SQLiteDatabase db, String table) {
+        db.execSQL("CREATE TABLE " + table + " ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "testVal INTEGER DEFAULT 0"
+                + ");");
+    }
+
+    private void insertData(SQLiteDatabase db, String table, int[] values) {
+        for (int i : values) {
+            ContentValues cv = new ContentValues();
+            cv.put("testVal", i);
+            db.insert(table, null, cv);
+        }
+    }
+
+    private void verifyData(SQLiteDatabase db, String table, int expectedVals) {
+        assertThat(db.query(table, null, null, null,
+                            null, null, null).getCount()).isEqualTo(expectedVals);
+    }
+
+    @Test
+    public void testMultipleDbsPreserveData() throws Exception {
+        final String TABLE_NAME1 = "fart", TABLE_NAME2 = "fart2";
+
+        SQLiteDatabase db1 = helper.getWritableDatabase();
+        setupTable(db1, TABLE_NAME1);
+        insertData(db1, TABLE_NAME1, new int[]{1, 2});
+
+        TestOpenHelper helper2 = new TestOpenHelper(null, "path2", null, 1);
+        SQLiteDatabase db2 = helper2.getWritableDatabase();
+
+        setupTable(db2, TABLE_NAME2);
+        insertData(db2, TABLE_NAME2, new int[]{4, 5, 6});
+
+        verifyData(db1, TABLE_NAME1, 2);
+        verifyData(db2, TABLE_NAME2, 3);
+    }
+
+    @Test
+    public void testResetDbs() throws Exception {
+        final String TABLE_NAME1 = "fart", TABLE_NAME2 = "fart2";
+
+        TestOpenHelper helper2 = new TestOpenHelper(null, "path2", null, 1);
+
+        SQLiteDatabase db1 = helper.getWritableDatabase();
+        SQLiteDatabase db2 = helper2.getWritableDatabase();
+
+        setupTable(db1, TABLE_NAME1);
+        setupTable(db2, TABLE_NAME2);
+
+        insertData(db1, TABLE_NAME1, new int[]{1, 2});
+        insertData(db2, TABLE_NAME2, new int[]{4, 5, 6});
+
+        verifyData(db1, TABLE_NAME1, 2);
+        verifyData(db2, TABLE_NAME2, 3);
+
+        ShadowSQLiteDatabase.reset();
+
+        db1 = helper.getWritableDatabase();
+        db2 = helper2.getWritableDatabase();
+
+        // shouldn't throw exceptions bc the table
+        // doesn't exist
+        setupTable(db1, TABLE_NAME1);
+        setupTable(db2, TABLE_NAME2);
+    }
+
+    @Test
+    public void testCloseOneDbKeepsDataForOther() throws Exception {
+        final String TABLE_NAME1 = "fart", TABLE_NAME2 = "fart2";
+
+        TestOpenHelper helper2 = new TestOpenHelper(null, "path2", null, 1);
+
+        SQLiteDatabase db1 = helper.getWritableDatabase();
+        SQLiteDatabase db2 = helper2.getWritableDatabase();
+
+        setupTable(db1, TABLE_NAME1);
+        setupTable(db2, TABLE_NAME2);
+
+        insertData(db1, TABLE_NAME1, new int[]{1, 2});
+        insertData(db2, TABLE_NAME2, new int[]{4, 5, 6});
+
+        verifyData(db1, TABLE_NAME1, 2);
+        verifyData(db2, TABLE_NAME2, 3);
+
+        db1.close();
+
+        verifyData(db2, TABLE_NAME2, 3);
+
+        db1 = helper.getWritableDatabase();
+        verifyData(db1, TABLE_NAME1, 2);
+        verifyData(db2, TABLE_NAME2, 3);
     }
 
     private void assertInitialDB(SQLiteDatabase database) {

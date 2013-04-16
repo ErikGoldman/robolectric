@@ -1,20 +1,21 @@
 package org.robolectric.shadows;
 
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
+import static org.fest.assertions.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+import static org.robolectric.Robolectric.shadowOf;
+
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.robolectric.Robolectric;
 
-import java.sql.ResultSet;
-import java.sql.Statement;
-
-import static org.fest.assertions.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-import static org.robolectric.Robolectric.shadowOf;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 
 
 public abstract class DatabaseTestBase {
@@ -120,7 +121,7 @@ public abstract class DatabaseTestBase {
         assertThat(stringValueFromDatabase).isEqualTo(stringColumnValue);
         assertThat(byteValueFromDatabase).isEqualTo(byteColumnValue);
     }
-    
+
     @Test(expected = android.database.SQLException.class)
     public void testInsertOrThrowWithSimulatedSQLException() {
         shDatabase.setThrowOnInsert(true);
@@ -135,7 +136,7 @@ public abstract class DatabaseTestBase {
         database.insertOrThrow("table_name", null, values);
         database.insertOrThrow("table_name", null, values);
     }
-    
+
     @Test
     public void testInsertOrThrow() {
         String stringColumnValue = "column_value";
@@ -144,7 +145,7 @@ public abstract class DatabaseTestBase {
         values.put("first_column", stringColumnValue);
         values.put("second_column", byteColumnValue);
         database.insertOrThrow("table_name", null, values);
-        
+
         Cursor cursor = database.rawQuery("select second_column, first_column from table_name", null);
         assertThat(cursor.moveToFirst()).isTrue();
         byte[] byteValueFromDatabase = cursor.getBlob(0);
@@ -182,10 +183,10 @@ public abstract class DatabaseTestBase {
     }
     /*
      * Reason why testRawQueryCount4() and testRawQueryCount5() expects exceptions even though exceptions are not found in Android.
-     * 
+     *
      * The code in Android acts inconsistently under API version 2.1_r1 (and perhaps other APIs)..
-     * What happens is that rawQuery() remembers the selectionArgs of previous queries, 
-     * and uses them if no selectionArgs are given in subsequent queries. 
+     * What happens is that rawQuery() remembers the selectionArgs of previous queries,
+     * and uses them if no selectionArgs are given in subsequent queries.
      * If they were never given selectionArgs THEN they return empty cursors.
      *
      *
@@ -201,13 +202,13 @@ public abstract class DatabaseTestBase {
 	 * }
 	 *
 	 * so SQLite + Android work inconsistently (it maintains state that it should not)
-	 * whereas H2 just throws an exception for not supplying the selectionArgs 
+	 * whereas H2 just throws an exception for not supplying the selectionArgs
 	 *
 	 * So the question is should Robolectric:
 	 * 1) throw an exception, the way H2 does.
 	 * 2) return an empty Cursor.
 	 * 3) mimic Android\SQLite precisely and return inconsistent results based on previous state
-	 * 
+	 *
 	 * Returning an empty cursor all the time would be bad
 	 * because Android doesn't always return an empty cursor.
 	 * But just mimicing Android would not be helpful,
@@ -594,7 +595,7 @@ public abstract class DatabaseTestBase {
             assertThat(e.getMessage()).isEqualTo("transaction already successfully");
         }
     }
-    
+
     @Test
     public void testInTransaction() throws Exception {
         assertThat(database.inTransaction()).isFalse();

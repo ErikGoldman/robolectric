@@ -1,23 +1,13 @@
 package org.robolectric.shadows;
 
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.DatabaseUtils;
-import android.database.sqlite.SQLiteClosable;
-import android.database.sqlite.SQLiteCursor;
-import android.database.sqlite.SQLiteCursorDriver;
-import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteDatabaseCorruptException;
-import android.database.sqlite.SQLiteQuery;
-import android.database.sqlite.SQLiteQueryBuilder;
-import android.database.sqlite.SQLiteStatement;
-import org.robolectric.Robolectric;
-import org.robolectric.internal.Implementation;
-import org.robolectric.internal.Implements;
-import org.robolectric.internal.RealObject;
-import org.robolectric.util.DatabaseConfig;
-import org.robolectric.util.SQLite.*;
+import static org.robolectric.Robolectric.newInstanceOf;
+import static org.robolectric.Robolectric.shadowOf;
+import static org.robolectric.util.SQLite.buildDeleteString;
+import static org.robolectric.util.SQLite.buildInsertString;
+import static org.robolectric.util.SQLite.buildUpdateString;
+import static org.robolectric.util.SQLite.buildWhereClause;
 
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -31,9 +21,24 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.robolectric.Robolectric.newInstanceOf;
-import static org.robolectric.Robolectric.shadowOf;
-import static org.robolectric.util.SQLite.*;
+import org.robolectric.Robolectric;
+import org.robolectric.internal.Implementation;
+import org.robolectric.internal.Implements;
+import org.robolectric.internal.RealObject;
+import org.robolectric.util.DatabaseConfig;
+import org.robolectric.util.SQLite.SQLStringAndBindings;
+
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.DatabaseUtils;
+import android.database.sqlite.SQLiteClosable;
+import android.database.sqlite.SQLiteCursor;
+import android.database.sqlite.SQLiteCursorDriver;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabaseCorruptException;
+import android.database.sqlite.SQLiteQuery;
+import android.database.sqlite.SQLiteQueryBuilder;
+import android.database.sqlite.SQLiteStatement;
 
 /**
  * Shadow for {@code SQLiteDatabase} that simulates the movement of a {@code Cursor} through database tables.
@@ -53,7 +58,6 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
     };
 
     @RealObject	SQLiteDatabase realSQLiteDatabase;
-    private static Connection connection;
     private final ReentrantLock mLock = new ReentrantLock(true);
     private boolean mLockingEnabled = true;
     private WeakHashMap<SQLiteClosable, Object> mPrograms;
@@ -61,6 +65,12 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
     private boolean throwOnInsert;
     private Set<Cursor> cursors = new HashSet<Cursor>();
     private List<String> querySql = new ArrayList<String>();
+    private boolean isOpen; // never close connections bc that deletes the in-memory db
+    private String path;
+
+    private static Object connectionLock = new Object();
+
+    private static Connection connection = DatabaseConfig.getMemoryConnection();
 
     @Implementation
     public void setLockingEnabled(boolean lockingEnabled) {
@@ -77,14 +87,55 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
         mLock.unlock();
     }
 
+    private void init(String path) {
+        this.path = path;
+        isOpen = true;
+    }
+
     public void setThrowOnInsert(boolean throwOnInsert) {
         this.throwOnInsert = throwOnInsert;
     }
 
+    public static void reset() {
+        try {
+            synchronized (connectionLock) {
+                if (connection != null) {
+                    connection.close();
+                }
+                connection = null;
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Connection getConnection() {
+        synchronized (connectionLock) {
+            if (connection == null) {
+                connection = DatabaseConfig.getMemoryConnection();
+            }
+        }
+        return connection;
+    }
+
+    @Implementation
+    public String getPath() {
+        return path;
+    }
+
     @Implementation
     public static SQLiteDatabase openDatabase(String path, SQLiteDatabase.CursorFactory factory, int flags) {
-        connection = DatabaseConfig.getMemoryConnection();
-        return newInstanceOf(SQLiteDatabase.class);
+        SQLiteDatabase db = newInstanceOf(SQLiteDatabase.class);
+        try {
+            Field field = db.getClass().getDeclaredField("__robo_data__");
+            ShadowSQLiteDatabase shadow = (ShadowSQLiteDatabase)field.get(db);
+            shadow.init(path);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return db;
     }
 
     @Implementation
@@ -123,7 +174,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
 
         try {
             SQLStringAndBindings sqlInsertString = buildInsertString(table, initialValues, conflictAlgorithm);
-            PreparedStatement insert = connection.prepareStatement(sqlInsertString.sql, Statement.RETURN_GENERATED_KEYS);
+            PreparedStatement insert = getConnection().prepareStatement(sqlInsertString.sql, Statement.RETURN_GENERATED_KEYS);
             Iterator<Object> columns = sqlInsertString.columnValues.iterator();
             int i = 1;
             long result = -1;
@@ -158,7 +209,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
 
         ResultSet resultSet;
         try {
-            Statement statement = connection.createStatement(DatabaseConfig.getResultSetType(), ResultSet.CONCUR_READ_ONLY);
+            Statement statement = getConnection().createStatement(DatabaseConfig.getResultSetType(), ResultSet.CONCUR_READ_ONLY);
             resultSet = statement.executeQuery(sql);
         } catch (SQLException e) {
             throw new RuntimeException("SQL exception in query", e);
@@ -189,7 +240,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
         SQLStringAndBindings sqlUpdateString = buildUpdateString(table, values, whereClause, whereArgs);
 
         try {
-            PreparedStatement statement = connection.prepareStatement(sqlUpdateString.sql);
+            PreparedStatement statement = getConnection().prepareStatement(sqlUpdateString.sql);
             Iterator<Object> columns = sqlUpdateString.columnValues.iterator();
             int i = 1;
             while (columns.hasNext()) {
@@ -207,7 +258,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
         String sql = buildDeleteString(table, whereClause, whereArgs);
 
         try {
-            return connection.prepareStatement(sql).executeUpdate();
+            return getConnection().prepareStatement(sql).executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("SQL exception in delete", e);
         }
@@ -221,7 +272,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
 
         try {
             String scrubbedSql = DatabaseConfig.getScrubSQL(sql);
-            connection.createStatement().execute(scrubbedSql);
+            getConnection().createStatement().execute(scrubbedSql);
         } catch (java.sql.SQLException e) {
             android.database.SQLException ase = new android.database.SQLException();
             ase.initCause(e);
@@ -276,19 +327,19 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
         ResultSet resultSet;
         try {
             SQLiteStatement stmt = compileStatement(sql);
-            
+
              int numArgs = selectionArgs == null ? 0
                      : selectionArgs.length;
              for (int i = 0; i < numArgs; i++) {
                     stmt.bindString(i + 1, selectionArgs[i]);
              }
-          
+
               resultSet = Robolectric.shadowOf(stmt).getStatement().executeQuery();
           } catch (SQLException e) {
               throw new RuntimeException("SQL exception in query", e);
           }
           //TODO: assert rawquery with args returns actual values
-          
+
         SQLiteCursor cursor = (SQLiteCursor) cursorFactory.newCursor(null, null, null, null);
         shadowOf(cursor).setResultSet(resultSet, sqlBody);
         cursors.add(cursor);
@@ -297,30 +348,23 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
 
     @Implementation
     public boolean isOpen() {
-        return (connection != null);
+        return isOpen;
     }
 
+    @Override
     @Implementation
     public void close() {
-        if (!isOpen()) {
-            return;
-        }
-        try {
-            connection.close();
-            connection = null;
-        } catch (SQLException e) {
-            throw new RuntimeException("SQL exception in close", e);
-        }
+        isOpen = false;
     }
 
     @Implementation
     public void beginTransaction() {
         try {
-            connection.setAutoCommit(false);
+            getConnection().setAutoCommit(false);
         } catch (SQLException e) {
             throw new RuntimeException("SQL exception in beginTransaction", e);
         }
-        
+
         if (transaction == null) {
           transaction = new Transaction();
         } else {
@@ -346,11 +390,11 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
       } else {
           try {
               if (transaction.success && transaction.descendantsSuccess) {
-                  connection.commit();
+                  getConnection().commit();
               } else {
-                  connection.rollback();
+                  getConnection().rollback();
               }
-                    connection.setAutoCommit(true);
+              getConnection().setAutoCommit(true);
           } catch (SQLException e) {
               throw new RuntimeException("SQL exception in beginTransaction", e);
           }
@@ -377,10 +421,6 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
      *
      * @return the connection
      */
-    public Connection getConnection() {
-        return connection;
-    }
-
     @Implementation
     public SQLiteStatement compileStatement(String sql) throws SQLException {
         lock();
@@ -395,7 +435,7 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
             unlock();
         }
     }
-    
+
     /**
      * @param closable
      */
@@ -443,5 +483,5 @@ public class ShadowSQLiteDatabase extends ShadowSQLiteCloseable {
           this.parent = null;
         }
     }
-    
+
 }

@@ -1,5 +1,25 @@
 package org.robolectric;
 
+import static org.fest.reflect.core.Reflection.method;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.List;
+
+import org.apache.http.Header;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.impl.client.DefaultRequestDirector;
+import org.fest.reflect.method.Invoker;
+import org.robolectric.bytecode.RobolectricInternals;
+import org.robolectric.bytecode.ShadowWrangler;
+import org.robolectric.res.ResourceLoader;
+import org.robolectric.shadows.*;
+import org.robolectric.tester.org.apache.http.FakeHttpLayer;
+import org.robolectric.tester.org.apache.http.HttpRequestInfo;
+import org.robolectric.tester.org.apache.http.RequestMatcher;
+import org.robolectric.util.Scheduler;
+
 import android.accounts.AccountManager;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
@@ -167,202 +187,6 @@ import android.widget.VideoView;
 import android.widget.ViewAnimator;
 import android.widget.ViewFlipper;
 import android.widget.ZoomButtonsController;
-import org.apache.http.Header;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.impl.client.DefaultRequestDirector;
-import org.fest.reflect.method.Invoker;
-import org.robolectric.bytecode.RobolectricInternals;
-import org.robolectric.bytecode.ShadowWrangler;
-import org.robolectric.res.ResourceLoader;
-import org.robolectric.shadows.HttpResponseGenerator;
-import org.robolectric.shadows.ShadowAbsListView;
-import org.robolectric.shadows.ShadowAbsSeekBar;
-import org.robolectric.shadows.ShadowAccountManager;
-import org.robolectric.shadows.ShadowActivity;
-import org.robolectric.shadows.ShadowActivityGroup;
-import org.robolectric.shadows.ShadowActivityManager;
-import org.robolectric.shadows.ShadowAdapterView;
-import org.robolectric.shadows.ShadowAddress;
-import org.robolectric.shadows.ShadowAlarmManager;
-import org.robolectric.shadows.ShadowAlertDialog;
-import org.robolectric.shadows.ShadowAlphaAnimation;
-import org.robolectric.shadows.ShadowAnimation;
-import org.robolectric.shadows.ShadowAnimationDrawable;
-import org.robolectric.shadows.ShadowAnimationSet;
-import org.robolectric.shadows.ShadowAnimationUtils;
-import org.robolectric.shadows.ShadowAnimator;
-import org.robolectric.shadows.ShadowAnimatorSet;
-import org.robolectric.shadows.ShadowAppWidgetHost;
-import org.robolectric.shadows.ShadowAppWidgetHostView;
-import org.robolectric.shadows.ShadowAppWidgetManager;
-import org.robolectric.shadows.ShadowApplication;
-import org.robolectric.shadows.ShadowArrayAdapter;
-import org.robolectric.shadows.ShadowAssetManager;
-import org.robolectric.shadows.ShadowAsyncTask;
-import org.robolectric.shadows.ShadowAudioManager;
-import org.robolectric.shadows.ShadowBaseAdapter;
-import org.robolectric.shadows.ShadowBitmap;
-import org.robolectric.shadows.ShadowBitmapDrawable;
-import org.robolectric.shadows.ShadowBitmapFactory;
-import org.robolectric.shadows.ShadowBluetoothAdapter;
-import org.robolectric.shadows.ShadowBluetoothDevice;
-import org.robolectric.shadows.ShadowBundle;
-import org.robolectric.shadows.ShadowCamera;
-import org.robolectric.shadows.ShadowCameraParameters;
-import org.robolectric.shadows.ShadowCameraSize;
-import org.robolectric.shadows.ShadowCanvas;
-import org.robolectric.shadows.ShadowCheckedTextView;
-import org.robolectric.shadows.ShadowClipboardManager;
-import org.robolectric.shadows.ShadowColor;
-import org.robolectric.shadows.ShadowColorDrawable;
-import org.robolectric.shadows.ShadowColorMatrix;
-import org.robolectric.shadows.ShadowConfiguration;
-import org.robolectric.shadows.ShadowConnectivityManager;
-import org.robolectric.shadows.ShadowContentObserver;
-import org.robolectric.shadows.ShadowContentProviderOperation;
-import org.robolectric.shadows.ShadowContentProviderOperationBuilder;
-import org.robolectric.shadows.ShadowContentProviderResult;
-import org.robolectric.shadows.ShadowContentResolver;
-import org.robolectric.shadows.ShadowContentValues;
-import org.robolectric.shadows.ShadowContext;
-import org.robolectric.shadows.ShadowContextWrapper;
-import org.robolectric.shadows.ShadowCookieManager;
-import org.robolectric.shadows.ShadowCookieSyncManager;
-import org.robolectric.shadows.ShadowCornerPathEffect;
-import org.robolectric.shadows.ShadowCountDownTimer;
-import org.robolectric.shadows.ShadowCursorAdapter;
-import org.robolectric.shadows.ShadowCursorLoader;
-import org.robolectric.shadows.ShadowCursorWrapper;
-import org.robolectric.shadows.ShadowDateFormat;
-import org.robolectric.shadows.ShadowDefaultRequestDirector;
-import org.robolectric.shadows.ShadowDialog;
-import org.robolectric.shadows.ShadowDialogPreference;
-import org.robolectric.shadows.ShadowDisplay;
-import org.robolectric.shadows.ShadowDrawable;
-import org.robolectric.shadows.ShadowEditTextPreference;
-import org.robolectric.shadows.ShadowExpandableListView;
-import org.robolectric.shadows.ShadowFilter;
-import org.robolectric.shadows.ShadowFrameLayout;
-import org.robolectric.shadows.ShadowGallery;
-import org.robolectric.shadows.ShadowGeocoder;
-import org.robolectric.shadows.ShadowGestureDetector;
-import org.robolectric.shadows.ShadowGridView;
-import org.robolectric.shadows.ShadowHandler;
-import org.robolectric.shadows.ShadowHandlerThread;
-import org.robolectric.shadows.ShadowImageView;
-import org.robolectric.shadows.ShadowInputDevice;
-import org.robolectric.shadows.ShadowInputMethodManager;
-import org.robolectric.shadows.ShadowIntent;
-import org.robolectric.shadows.ShadowJsPromptResult;
-import org.robolectric.shadows.ShadowJsResult;
-import org.robolectric.shadows.ShadowKeyEvent;
-import org.robolectric.shadows.ShadowKeyGuardLock;
-import org.robolectric.shadows.ShadowKeyguardManager;
-import org.robolectric.shadows.ShadowLayerDrawable;
-import org.robolectric.shadows.ShadowLayoutAnimationController;
-import org.robolectric.shadows.ShadowLayoutInflater;
-import org.robolectric.shadows.ShadowLinearGradient;
-import org.robolectric.shadows.ShadowLinearLayout;
-import org.robolectric.shadows.ShadowListActivity;
-import org.robolectric.shadows.ShadowListPreference;
-import org.robolectric.shadows.ShadowListView;
-import org.robolectric.shadows.ShadowLocation;
-import org.robolectric.shadows.ShadowLocationManager;
-import org.robolectric.shadows.ShadowLog;
-import org.robolectric.shadows.ShadowLooper;
-import org.robolectric.shadows.ShadowMatrix;
-import org.robolectric.shadows.ShadowMediaPlayer;
-import org.robolectric.shadows.ShadowMediaRecorder;
-import org.robolectric.shadows.ShadowMediaStore;
-import org.robolectric.shadows.ShadowMenuInflater;
-import org.robolectric.shadows.ShadowMergeCursor;
-import org.robolectric.shadows.ShadowMessage;
-import org.robolectric.shadows.ShadowMimeTypeMap;
-import org.robolectric.shadows.ShadowMotionEvent;
-import org.robolectric.shadows.ShadowNetworkInfo;
-import org.robolectric.shadows.ShadowNotification;
-import org.robolectric.shadows.ShadowNotificationManager;
-import org.robolectric.shadows.ShadowNumberPicker;
-import org.robolectric.shadows.ShadowObjectAnimator;
-import org.robolectric.shadows.ShadowPaint;
-import org.robolectric.shadows.ShadowParcel;
-import org.robolectric.shadows.ShadowPasswordTransformationMethod;
-import org.robolectric.shadows.ShadowPath;
-import org.robolectric.shadows.ShadowPendingIntent;
-import org.robolectric.shadows.ShadowPhoneNumberUtils;
-import org.robolectric.shadows.ShadowPopupWindow;
-import org.robolectric.shadows.ShadowPowerManager;
-import org.robolectric.shadows.ShadowPreference;
-import org.robolectric.shadows.ShadowPreferenceActivity;
-import org.robolectric.shadows.ShadowPreferenceCategory;
-import org.robolectric.shadows.ShadowPreferenceGroup;
-import org.robolectric.shadows.ShadowPreferenceScreen;
-import org.robolectric.shadows.ShadowProgressBar;
-import org.robolectric.shadows.ShadowProgressDialog;
-import org.robolectric.shadows.ShadowRatingBar;
-import org.robolectric.shadows.ShadowRect;
-import org.robolectric.shadows.ShadowRemoteViews;
-import org.robolectric.shadows.ShadowResolveInfo;
-import org.robolectric.shadows.ShadowResourceCursorAdapter;
-import org.robolectric.shadows.ShadowResources;
-import org.robolectric.shadows.ShadowResultReceiver;
-import org.robolectric.shadows.ShadowSQLiteCursor;
-import org.robolectric.shadows.ShadowSQLiteDatabase;
-import org.robolectric.shadows.ShadowSQLiteOpenHelper;
-import org.robolectric.shadows.ShadowSQLiteProgram;
-import org.robolectric.shadows.ShadowSQLiteQueryBuilder;
-import org.robolectric.shadows.ShadowSQLiteStatement;
-import org.robolectric.shadows.ShadowScaleGestureDetector;
-import org.robolectric.shadows.ShadowScanResult;
-import org.robolectric.shadows.ShadowScrollView;
-import org.robolectric.shadows.ShadowScroller;
-import org.robolectric.shadows.ShadowSeekBar;
-import org.robolectric.shadows.ShadowSensorManager;
-import org.robolectric.shadows.ShadowService;
-import org.robolectric.shadows.ShadowShapeDrawable;
-import org.robolectric.shadows.ShadowSimpleCursorAdapter;
-import org.robolectric.shadows.ShadowSmsManager;
-import org.robolectric.shadows.ShadowSparseArray;
-import org.robolectric.shadows.ShadowSparseBooleanArray;
-import org.robolectric.shadows.ShadowSparseIntArray;
-import org.robolectric.shadows.ShadowSslErrorHandler;
-import org.robolectric.shadows.ShadowStatFs;
-import org.robolectric.shadows.ShadowStateListDrawable;
-import org.robolectric.shadows.ShadowTabHost;
-import org.robolectric.shadows.ShadowTabSpec;
-import org.robolectric.shadows.ShadowTelephonyManager;
-import org.robolectric.shadows.ShadowTextPaint;
-import org.robolectric.shadows.ShadowTextView;
-import org.robolectric.shadows.ShadowToast;
-import org.robolectric.shadows.ShadowTouchDelegate;
-import org.robolectric.shadows.ShadowTranslateAnimation;
-import org.robolectric.shadows.ShadowTypedArray;
-import org.robolectric.shadows.ShadowTypeface;
-import org.robolectric.shadows.ShadowUriMatcher;
-import org.robolectric.shadows.ShadowVideoView;
-import org.robolectric.shadows.ShadowView;
-import org.robolectric.shadows.ShadowViewAnimator;
-import org.robolectric.shadows.ShadowViewConfiguration;
-import org.robolectric.shadows.ShadowViewFlipper;
-import org.robolectric.shadows.ShadowViewGroup;
-import org.robolectric.shadows.ShadowViewTreeObserver;
-import org.robolectric.shadows.ShadowWebView;
-import org.robolectric.shadows.ShadowWifiConfiguration;
-import org.robolectric.shadows.ShadowWifiInfo;
-import org.robolectric.shadows.ShadowWifiManager;
-import org.robolectric.shadows.ShadowWindow;
-import org.robolectric.shadows.ShadowZoomButtonsController;
-import org.robolectric.tester.org.apache.http.FakeHttpLayer;
-import org.robolectric.tester.org.apache.http.HttpRequestInfo;
-import org.robolectric.tester.org.apache.http.RequestMatcher;
-import org.robolectric.util.Scheduler;
-
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.List;
-
-import static org.fest.reflect.core.Reflection.method;
 
 public class Robolectric {
     public static Application application;
@@ -966,7 +790,7 @@ public class Robolectric {
     public static ShadowSparseBooleanArray shadowOf(SparseBooleanArray other) {
         return (ShadowSparseBooleanArray) Robolectric.shadowOf_(other);
     }
-    
+
     public static ShadowSparseIntArray shadowOf(SparseIntArray other){
     	return (ShadowSparseIntArray) Robolectric.shadowOf_(other);
     }
@@ -1152,6 +976,7 @@ public class Robolectric {
      * @param contentType  the contentType of the response
      * @deprecated use {@link #addPendingHttpResponse(int, String, Header...)} instead
      */
+    @Deprecated
     public static void addPendingHttpResponseWithContentType(int statusCode, String responseBody, Header contentType) {
         getFakeHttpLayer().addPendingHttpResponse(statusCode, responseBody, contentType);
     }
@@ -1429,6 +1254,7 @@ public class Robolectric {
         ShadowPowerManager.reset();
         ShadowStatFs.reset();
         ShadowTypeface.reset();
+        ShadowSQLiteDatabase.reset();
     }
 
     /**
@@ -1454,7 +1280,7 @@ public class Robolectric {
 
         public static Object setFinalStaticField(Field field, Object newValue) {
         	Object oldValue;
-        	
+
             try {
                 field.setAccessible(true);
 

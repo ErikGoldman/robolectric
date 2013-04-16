@@ -1,9 +1,15 @@
 package org.robolectric.shadows;
 
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import com.googlecode.catchexception.CatchException;
+import static com.googlecode.catchexception.CatchException.catchException;
+import static com.googlecode.catchexception.CatchException.caughtException;
+import static org.fest.assertions.api.Assertions.assertThat;
+import static org.robolectric.Robolectric.shadowOf;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.List;
+
 import org.fest.assertions.api.Assertions;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -11,14 +17,9 @@ import org.robolectric.TestRunners;
 import org.robolectric.util.DatabaseConfig;
 import org.robolectric.util.SQLiteMap;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.List;
-
-import static com.googlecode.catchexception.CatchException.*;
-import static org.fest.assertions.api.Assertions.assertThat;
-import static org.robolectric.Robolectric.shadowOf;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 
 @DatabaseConfig.UsingDatabaseMap(SQLiteMap.class)
 @RunWith(TestRunners.WithDefaults.class)
