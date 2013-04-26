@@ -1,11 +1,9 @@
 package org.robolectric.res;
 
-import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,10 +15,10 @@ public class MenuLoader extends XmlLoader {
     }
 
     @Override
-    protected void processResourceXml(File xmlFile, Document document, XmlContext xmlContext) throws Exception {
+    protected void processResourceXml(FsFile xmlFile, XpathResourceXmlLoader.XmlNode xmlNode, XmlContext xmlContext) throws Exception {
         MenuNode topLevelNode = new MenuNode("top-level", new ArrayList<Attribute>());
 
-        NodeList items = document.getChildNodes();
+        NodeList items = parse(xmlFile).getChildNodes();
         if (items.getLength() != 1)
             throw new RuntimeException("Expected only one top-level item in menu file " + xmlFile.getName());
         if (items.item(0).getNodeName().compareTo("menu") != 0)
@@ -45,7 +43,7 @@ public class MenuLoader extends XmlLoader {
             int length = attributesNodes.getLength();
             for (int i = 0; i < length; i++) {
                 Node attr = attributesNodes.item(i);
-                String resourceName = ResName.qualifyResourceName(attr.getNodeName(), xmlContext.packageName);
+                String resourceName = Attribute.qualifyName(attr.getNodeName(), xmlContext.packageName);
                 attributes.add(new Attribute(Attribute.addType(resourceName, "attr"), attr.getNodeValue(), xmlContext.packageName));
             }
         }

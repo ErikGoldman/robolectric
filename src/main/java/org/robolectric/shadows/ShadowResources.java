@@ -90,7 +90,13 @@ public class ShadowResources {
     public int getIdentifier(String name, String defType, String defPackage) {
         ResourceIndex resourceIndex = resourceLoader.getResourceIndex();
 
-        Integer index = ResName.getResourceId(resourceIndex, defType + "/" + name, defPackage);
+        // Probably ResName should be refactored to accept partial names.
+        // ResName should act as a qualifiedName parser in this case.
+        if (!name.contains("/") && defType != null) {
+            name = defType + "/" + name;
+        }
+
+        Integer index = ResName.getResourceId(resourceIndex, name, defPackage);
         if (index == null) {
             return 0;
         }
@@ -338,5 +344,24 @@ public class ShadowResources {
             ((UsesResources) shadow).injectResources(resources);
         }
         return instance;
+    }
+
+    @Implements(Resources.NotFoundException.class)
+    public static class ShadowNotFoundException {
+        @RealObject Resources.NotFoundException realObject;
+
+        private String message;
+
+        public void __constructor__() {
+        }
+
+        public void __constructor__(String name) {
+            this.message = name;
+        }
+
+        @Implementation
+        public String toString() {
+            return realObject.getClass().getName() + ": " + message;
+        }
     }
 }

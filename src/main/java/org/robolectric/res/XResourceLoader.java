@@ -3,9 +3,7 @@ package org.robolectric.res;
 import android.view.View;
 import org.w3c.dom.Document;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +21,7 @@ abstract class XResourceLoader implements ResourceLoader {
     final ResBundle<DrawableNode> drawableData = new ResBundle<DrawableNode>();
     final ResBundle<PreferenceNode> preferenceData = new ResBundle<PreferenceNode>();
     final ResBundle<Document> xmlDocuments = new ResBundle<Document>();
-    final ResBundle<File> rawResourceFiles = new ResBundle<File>();
+    final ResBundle<FsFile> rawResources = new ResBundle<FsFile>();
     private final ResourceIndex resourceIndex;
     boolean isInitialized = false;
 
@@ -53,7 +51,7 @@ abstract class XResourceLoader implements ResourceLoader {
         drawableData.makeImmutable();
         preferenceData.makeImmutable();
         xmlDocuments.makeImmutable();
-        rawResourceFiles.makeImmutable();
+        rawResources.makeImmutable();
     }
 
     @Override
@@ -117,10 +115,10 @@ abstract class XResourceLoader implements ResourceLoader {
     public InputStream getRawValue(ResName resName) {
         initialize();
 
-        File file = rawResourceFiles.get(resName, "");
+        FsFile file = rawResources.get(resName, "");
         try {
-            return file == null ? null : new FileInputStream(file);
-        } catch (FileNotFoundException e) {
+            return file == null ? null : file.getInputStream();
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -219,7 +217,7 @@ abstract class XResourceLoader implements ResourceLoader {
         T resolveValue(String qualifiers, String value, String packageName) {
             if (value == null) return null;
             if (value.startsWith("@")) {
-                ResName resName = new ResName(ResName.qualifyResourceName(value.substring(1), packageName));
+                ResName resName = new ResName(ResName.qualifyResourceName(value.substring(1), packageName, null));
                 return resolve(resName, qualifiers);
             } else {
                 return convert(value);
